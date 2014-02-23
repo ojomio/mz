@@ -1,9 +1,13 @@
 from HTMLParser import HTMLParser
+import StringIO
 import argparse
 from copy import copy
+from fileinput import filename
+import os
 import re
 from urllib import urlencode
 import sys
+from os.path import exists
 
 __author__ = 'crystal'
 
@@ -96,17 +100,29 @@ class VKUploader(object):
             raise Exception('Hell! got %d', resp.text)
         return resp.json()['response']
 
-    def upload_photo(self, filename, upload_url):
+    def upload_photo(self, fileobj, upload_url):
         files = {
-            'file1': open(filename, 'rb')
+            'file1': (fileobj.filename, fileobj)
         }
         resp = self.VKsession.post(upload_url, files=files)
         if resp.status_code != requests.codes.ok:
             raise Exception('Hell! got %d', resp.text)
         req_params = copy(resp.json())
-        req_params['caption'] = filename
-        req_params['description'] = filename
+        req_params['caption'] = fileobj.filename
+        req_params['description'] = fileobj.filename
         return self.call_api('photos.save', req_params)
+
+
+def get_photo_from_site(filename):
+    filename = os.path.basename(filename)
+    print('Getting photo for goods id %s ...' % filename)
+    resp = requests.get('http://texrepublic.ru/pic/site/%s.gif' % filename)
+    if resp.status_code != requests.codes.ok:
+        raise Exception('Hell! got %d', resp.text)
+
+    ret = StringIO.StringIO(resp.content)
+    ret.filename = '%s.gif' % filename
+    return ret
 
 
 def main():
@@ -129,9 +145,13 @@ def main():
     upload_url = u.call_api('photos.getUploadServer', payload)['upload_url']
     print("Uploading photos to %s..." % upload_url)
 
-    for (idx, filename) in enumerate(args.files, start=1):
-        print('Uploading %d/%d file (%s)' % (idx, len(args.files), filename))
-        print(u.upload_photo(filename, upload_url))
+    for (idx, fname) in enumerate(args.files, start=1):
+        if exists(fname):
+            fileobj = open(fname, 'rb')
+        else:
+            fileobj = get_photo_from_site(fname)
+        print('Uploading %d/%d file (%s/%s)' % (idx, len(args.files), fname, str(fileobj)))
+        print(u.upload_photo(fileobj, upload_url))
 
 
 main()
