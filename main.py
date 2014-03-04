@@ -2,12 +2,13 @@ from HTMLParser import HTMLParser
 import StringIO
 import argparse
 from copy import copy
-from fileinput import filename
 import os
 import re
 from urllib import urlencode
-import sys
-from os.path import exists
+
+import xlrd
+from xlrd.xlsx import cell_name_to_rowx_colx
+
 
 __author__ = 'crystal'
 
@@ -49,6 +50,14 @@ class FormParser(HTMLParser):
                 raise RuntimeError("Unexpected end of <form>")
             self.in_form = False
             self.form_parsed = True
+
+
+class APIException(Exception):
+    pass
+
+
+class PhotoNotFound(Exception):
+    pass
 
 
 class VKUploader(object):
@@ -97,7 +106,7 @@ class VKUploader(object):
 
         resp = self.VKsession.__getattribute__(http_verb)(url)
         if resp.status_code != requests.codes.ok:
-            raise Exception('Hell! got %d', resp.text)
+            raise APIException('Hell! got %s', resp.text)
         return resp.json()['response']
 
     def upload_photo(self, fileobj, upload_url):
@@ -106,23 +115,63 @@ class VKUploader(object):
         }
         resp = self.VKsession.post(upload_url, files=files)
         if resp.status_code != requests.codes.ok:
-            raise Exception('Hell! got %d', resp.text)
+            raise Exception('Hell! got %s', resp.text)
         req_params = copy(resp.json())
         req_params['caption'] = fileobj.filename
         req_params['description'] = fileobj.filename
         return self.call_api('photos.save', req_params)
+
+    def get_uploaded_goods_list(self):
+        req_params = {
+            'owner_id': "-%s" % args.group_id,
+            'album_id': args.album_id,
+        }
+        return {
+            os.path.splitext(photo_entry['text'])[0]: photo_entry['pid']
+            for photo_entry
+            in self.call_api('photos.get', req_params)
+        }
 
 
 def get_photo_from_site(filename):
     filename = os.path.basename(filename)
     print('Getting photo for goods id %s ...' % filename)
     resp = requests.get('http://texrepublic.ru/pic/site/%s.gif' % filename)
+
     if resp.status_code != requests.codes.ok:
-        raise Exception('Hell! got %d', resp.text)
+        raise PhotoNotFound('Hell! got %s', resp.text)
 
     ret = StringIO.StringIO(resp.content)
     ret.filename = '%s.gif' % filename
     return ret
+
+
+def add_good(good_id, idx, total, uploader, upload_url):
+    try:
+        fileobj = get_photo_from_site(good_id)
+    except PhotoNotFound:
+        try:
+            fileobj = open('/'.join([args.missing_file_dir, good_id]), 'rb')
+        except IOError:
+            print('%s was not found either on site or on disk . Skipping' % good_id)
+            return
+
+    print('Uploading %d/%d file (%s/%s)' % (idx, total, good_id, str(fileobj)))
+    uploader.upload_photo(fileobj, upload_url)
+
+
+def is_good_id(str_):
+    return bool(re.match(r'^(\d|\s)+$', str_))
+
+
+def get_goods_in_stock(stock_list_file):
+    with xlrd.open_workbook(stock_list_file) as wb:
+        sh = wb.sheet_by_index(0)
+        for cell_value in sh.col_values(1):
+            if not is_good_id(cell_value):
+                continue
+
+            yield cell_value.strip()
 
 
 def main():
@@ -132,7 +181,10 @@ def main():
     parser.add_argument('--group_id', type=str, default='66887755')
     parser.add_argument('--album_id', type=str, default='188836852')
     parser.add_argument('--app_id', type=str, default='4203932')
-    parser.add_argument('files', type=str, nargs='*')
+    parser.add_argument('--missing-file-dir', type=str, default='.')
+
+    parser.add_argument('stock_list', type=str)
+    global args
     args = parser.parse_args()
 
     u = VKUploader(args.login, args.password, args.app_id)
@@ -145,13 +197,22 @@ def main():
     upload_url = u.call_api('photos.getUploadServer', payload)['upload_url']
     print("Uploading photos to %s..." % upload_url)
 
-    for (idx, fname) in enumerate(args.files, start=1):
-        if exists(fname):
-            fileobj = open(fname, 'rb')
-        else:
-            fileobj = get_photo_from_site(fname)
-        print('Uploading %d/%d file (%s/%s)' % (idx, len(args.files), fname, str(fileobj)))
-        print(u.upload_photo(fileobj, upload_url))
+    uploaded_goods = u.get_uploaded_goods_list()
+    goods_in_stock = set(get_goods_in_stock(args.stock_list))
+    todel = set(uploaded_goods.keys()) - goods_in_stock
+
+    print ('Removing %d goods not in stock...' % len(todel))
+    for (idx, good_id) in enumerate(todel, start=1):
+        print('Deleting %d/%d file (%s)' % (idx, len(todel), good_id))
+        try:
+            u.call_api('photos.delete', {'owner_id': u.user_id, 'photo_id': uploaded_goods[good_id]})
+        except APIException as e:
+            print('Error deleting: %s' % str(e))
+
+    toadd = goods_in_stock - set(uploaded_goods.keys())
+    print ('Adding %d goods...' % len(toadd))
+    for (idx, good_id) in enumerate(toadd, start=1):
+        add_good(good_id, idx, len(toadd), u, upload_url)
 
 
 main()
