@@ -205,7 +205,7 @@ def main():
     for (idx, good_id) in enumerate(todel, start=1):
         print('Deleting %d/%d file (%s)' % (idx, len(todel), good_id))
         try:
-            u.call_api('photos.delete', {'owner_id': u.user_id, 'photo_id': uploaded_goods[good_id]})
+            u.call_api('photos.delete', {'owner_id': "-%s" % args.group_id, 'photo_id': uploaded_goods[good_id]})
         except APIException as e:
             print('Error deleting: %s' % str(e))
 
