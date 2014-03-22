@@ -1,3 +1,4 @@
+# coding=utf-8
 from HTMLParser import HTMLParser
 import StringIO
 import argparse
@@ -7,7 +8,6 @@ import re
 from urllib import urlencode
 
 import xlrd
-from xlrd.xlsx import cell_name_to_rowx_colx
 
 
 __author__ = 'crystal'
@@ -71,7 +71,7 @@ class VKUploader(object):
             'client_id': self.app_id,
             'redirect_uri': "https://oauth.vk.com/blank.html",
             'v': '5.11',
-            'scope': "1310724",
+            'scope': 4 + 262144 + 1048576,
             'display': 'wap',
             'response_type': 'token',
             'revoke': 1,
@@ -107,9 +107,13 @@ class VKUploader(object):
         resp = self.VKsession.__getattribute__(http_verb)(url)
         if resp.status_code != requests.codes.ok:
             raise APIException('Hell! got %s', resp.text)
-        return resp.json()['response']
+        json = resp.json()
+        if 'error' in json:
+            raise APIException('Hell! got %s' % json)
 
-    def upload_photo(self, fileobj, upload_url):
+        return json['response']
+
+    def upload_photo(self, fileobj, upload_url, description):
         files = {
             'file1': (fileobj.filename, fileobj)
         }
@@ -117,17 +121,40 @@ class VKUploader(object):
         if resp.status_code != requests.codes.ok:
             raise Exception('Hell! got %s', resp.text)
         req_params = copy(resp.json())
-        req_params['caption'] = fileobj.filename
-        req_params['description'] = fileobj.filename
+        req_params['caption'] = description.encode('utf8')+'\n'+fileobj.filename
+        req_params['description'] = description.encode('utf8')+'\n'+fileobj.filename
         return self.call_api('photos.save', req_params)
 
-    def get_uploaded_goods_list(self):
+    def get_albums(self):
         req_params = {
             'owner_id': "-%s" % args.group_id,
-            'album_id': args.album_id,
         }
         return {
-            os.path.splitext(photo_entry['text'])[0]: photo_entry['pid']
+            album_entry['title']: album_entry['aid']
+            for album_entry
+            in self.call_api('photos.getAlbums', req_params)
+        }
+
+    def create_album(self, title, descr=''):
+        req_params = {
+            'group_id': "%s" % args.group_id,
+            'title': title.encode('utf8'),
+            'description': title.encode('utf8'),
+            'privacy': '0',
+            'comment_privacy': '0',
+
+        }
+        return self.call_api('photos.createAlbum', req_params)['aid']
+
+    def get_uploaded_goods_list(self, album):
+        req_params = {
+            'owner_id': "-%s" % args.group_id,
+            'album_id': album,
+        }
+        return {
+            os.path.splitext(
+                photo_entry['text'].split('<br>')[-1]
+            )[0] : photo_entry['pid']
             for photo_entry
             in self.call_api('photos.get', req_params)
         }
@@ -146,7 +173,7 @@ def get_photo_from_site(filename):
     return ret
 
 
-def add_good(good_id, idx, total, uploader, upload_url):
+def add_good(good_id, idx, total, uploader, upload_url, description):
     try:
         fileobj = get_photo_from_site(good_id)
     except PhotoNotFound:
@@ -157,21 +184,39 @@ def add_good(good_id, idx, total, uploader, upload_url):
             return
 
     print('Uploading %d/%d file (%s/%s)' % (idx, total, good_id, str(fileobj)))
-    uploader.upload_photo(fileobj, upload_url)
+    uploader.upload_photo(fileobj, upload_url, description)
 
 
 def is_good_id(str_):
-    return bool(re.match(r'^(\d|\s)+$', str_))
+    return bool(re.match(r'^[\d\s.]+$', str_))
 
 
 def get_goods_in_stock(stock_list_file):
-    with xlrd.open_workbook(stock_list_file) as wb:
-        sh = wb.sheet_by_index(0)
-        for cell_value in sh.col_values(1):
+    def entries_():
+        for row_number in range(sh.nrows):
+            cell_value = unicode(sh.cell_value(row_number, 1))
             if not is_good_id(cell_value):
                 continue
 
-            yield cell_value.strip()
+            yield (
+                {
+                    'id': str(int(float(cell_value.strip()))),
+                    'group_id': sh.cell_value(row_number, 5),
+                    'description': '\n'.join(sh.cell_value(row_number, i) for i in (2, 3, 9))
+                    # Наименование, класс, характеристики
+                }
+            )
+
+    goods = {}
+
+    with xlrd.open_workbook(stock_list_file) as wb:
+        sh = wb.sheet_by_index(0)
+        for entry in entries_():
+            group_dict = goods.get(entry['group_id'], {})
+            group_dict[entry['id']] = entry['description']
+            goods[entry['group_id']] = group_dict
+
+    return goods
 
 
 def main():
@@ -179,7 +224,6 @@ def main():
     parser.add_argument('--login', type=str)
     parser.add_argument('--password', type=str)
     parser.add_argument('--group_id', type=str, default='66887755')
-    parser.add_argument('--album_id', type=str, default='188836852')
     parser.add_argument('--app_id', type=str, default='4203932')
     parser.add_argument('--missing-file-dir', type=str, default='.')
 
@@ -190,29 +234,40 @@ def main():
     u = VKUploader(args.login, args.password, args.app_id)
     u.do_auth()
 
-    payload = {
-        'album_id': args.album_id,
-        'group_id': args.group_id
-    }
-    upload_url = u.call_api('photos.getUploadServer', payload)['upload_url']
-    print("Uploading photos to %s..." % upload_url)
+    existing_albums = u.get_albums()
+    goods_in_stock = get_goods_in_stock(args.stock_list)
+    del goods_in_stock['NULL']  # Не показывать эту группу
 
-    uploaded_goods = u.get_uploaded_goods_list()
-    goods_in_stock = set(get_goods_in_stock(args.stock_list))
-    todel = set(uploaded_goods.keys()) - goods_in_stock
+    albums_to_create = set(goods_in_stock.keys()) - set(existing_albums.keys())
+    print('Creating missing photo albums(%d)...' % len(albums_to_create))
+    for album_name in albums_to_create:
+        print 'Creating %s...' % album_name
+        existing_albums[album_name] = u.create_album(album_name)
 
-    print ('Removing %d goods not in stock...' % len(todel))
-    for (idx, good_id) in enumerate(todel, start=1):
-        print('Deleting %d/%d file (%s)' % (idx, len(todel), good_id))
-        try:
-            u.call_api('photos.delete', {'owner_id': "-%s" % args.group_id, 'photo_id': uploaded_goods[good_id]})
-        except APIException as e:
-            print('Error deleting: %s' % str(e))
+    for goods_group_id in goods_in_stock.iterkeys():
+        payload = {
+            'album_id': existing_albums[goods_group_id],
+            'group_id': args.group_id
+        }
+        upload_url = u.call_api('photos.getUploadServer', payload)['upload_url']
+        print("Uploading photos for album '%s' to %s..." % (goods_group_id, upload_url))
 
-    toadd = goods_in_stock - set(uploaded_goods.keys())
-    print ('Adding %d goods...' % len(toadd))
-    for (idx, good_id) in enumerate(toadd, start=1):
-        add_good(good_id, idx, len(toadd), u, upload_url)
+        uploaded_goods = u.get_uploaded_goods_list(existing_albums[goods_group_id])
+
+        todel = set(uploaded_goods.keys()) - set(goods_in_stock[goods_group_id].keys())
+
+        print('Removing %d goods not in stock...' % len(todel))
+        for (idx, good_id) in enumerate(todel, start=1):
+            print('Deleting %d/%d file (%s)' % (idx, len(todel), good_id))
+            try:
+                u.call_api('photos.delete', {'owner_id': "-%s" % args.group_id, 'photo_id': uploaded_goods[good_id]})
+            except APIException as e:
+                print('Error deleting: %s' % str(e))
+
+        toadd = set(goods_in_stock[goods_group_id].keys()) - set(uploaded_goods.keys())
+        print('Adding %d goods...' % len(toadd))
+        for (idx, good_id) in enumerate(toadd, start=1):
+            add_good(good_id, idx, len(toadd), u, upload_url, goods_in_stock[goods_group_id][good_id])
 
 
 main()
