@@ -4,8 +4,10 @@ import StringIO
 import argparse
 from copy import copy
 import os
+from pprint import pprint
 import re
 from urllib import urlencode
+import sys
 
 import xlrd
 
@@ -22,7 +24,7 @@ class FormParser(HTMLParser):
         self.params = {}
         self.in_form = False
         self.form_parsed = False
-        self.method = "GET"
+        self.method = "get"
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
@@ -61,15 +63,13 @@ class PhotoNotFound(Exception):
 
 
 class VKUploader(object):
-    def __init__(self, login, password, app_id):
-        self.login = login
-        self.password = password
-        self.app_id = app_id
+    def __init__(self, app):
+        self.app = app
         self.do_auth()
 
     def do_auth(self):
         payload = {
-            'client_id': self.app_id,
+            'client_id': self.app.app_id,
             'redirect_uri': "https://oauth.vk.com/blank.html",
             'v': '5.11',
             'scope': 4 + 262144 + 1048576,
@@ -84,8 +84,8 @@ class VKUploader(object):
         parser.feed(resp_with_auth_form.text)
 
         req_params = copy(parser.params)
-        req_params['email'] = self.login
-        req_params['pass'] = self.password
+        req_params['email'] = self.app.login
+        req_params['pass'] = self.app.password
 
         resp_with_grant_access_form = \
             self.VKsession.__getattribute__(parser.method)(parser.url, params=req_params)
@@ -138,7 +138,7 @@ class VKUploader(object):
 
     def get_albums(self):
         req_params = {
-            'owner_id': "-%s" % args.group_id,
+            'owner_id': "-%s" % self.app.group_id,
         }
         return {
             album_entry['title']: album_entry['aid']
@@ -149,7 +149,7 @@ class VKUploader(object):
     def create_album(self, title, descr=None):
         descr = descr or title
         req_params = {
-            'group_id': "%s" % args.group_id,
+            'group_id': "%s" % self.app.group_id,
             'title': title,
             'description': descr,
             'privacy': '0',
@@ -160,7 +160,7 @@ class VKUploader(object):
 
     def get_uploaded_goods_list(self, album):
         req_params = {
-            'owner_id': "-%s" % args.group_id,
+            'owner_id': "-%s" % self.app.group_id,
             'album_id': album,
         }
         return {
@@ -176,120 +176,135 @@ class VKUploader(object):
         )[0]
 
 
+class Group(object):
+    def __init__(self, app, album_id, goods_group_id, contained_goods):
+        self.app = app
+        self.id = goods_group_id
+        self.uploaded_goods = self.app.u.get_uploaded_goods_list(album_id)
+        payload = {
+            'album_id': album_id,
+            'group_id': self.app.group_id
+        }
+        self.upload_url = self.app.u.call_api('photos.getUploadServer', payload)['upload_url']
+        self.contained_goods = contained_goods
 
-def main():
-    setup_arguments()
+    def sync_goods_in_group(self):
+        print("Uploading photos for album '%s' to %s..." % (self.id, self.upload_url))
+        self.delete_not_in_stock()
+        self.add_not_in_album()
 
-    u = VKUploader(args.login, args.password, args.app_id)
-
-    existing_albums = u.get_albums()
-    goods_in_stock = get_goods_in_stock(args.stock_list)
-    create_missing_albums(u, existing_albums, goods_in_stock)
-    for goods_group_id in goods_in_stock.iterkeys():
-        sync_goods_in_group(existing_albums, goods_group_id, goods_in_stock, u)
-
-
-def setup_arguments():
-    parser = argparse.ArgumentParser(description='Upload files to VK group')
-    parser.add_argument('--login', type=str)
-    parser.add_argument('--password', type=str)
-    parser.add_argument('--group_id', type=str, default='66887755')
-    parser.add_argument('--app_id', type=str, default='4203932')
-    parser.add_argument('--missing-file-dir', type=str, default='.')
-    parser.add_argument('stock_list', type=str)
-    global args
-    args = parser.parse_args()
-
-
-def get_goods_in_stock(stock_list_file):
-    def entries_():
-        for row_number in range(sh.nrows):
-            cell_value = unicode(sh.cell_value(row_number, 1))
-            if not is_good_id(cell_value):
-                continue
-
-            yield (
-                {
-                    'id': str(int(float(cell_value.strip()))),
-                    'group_id': sh.cell_value(row_number, 5),
-                    'description': '\n'.join(sh.cell_value(row_number, i) for i in (2, 3, 9))
-                    # Наименование, класс, характеристики
-                }
+    def delete_not_in_stock(self):
+        todel = set(self.uploaded_goods.keys()) - set(self.contained_goods.keys())
+        print('Removing %d goods not in stock...' % len(todel))
+        for (idx, good_id) in enumerate(todel, start=1):
+            print('Deleting %d/%d file (%s)' % (idx, len(todel), good_id))
+            self.app.u.call_api(
+                'photos.delete',
+                {'owner_id': "-%s" % self.app.group_id, 'photo_id': self.uploaded_goods[good_id]}
             )
 
-    goods = {}
+    def add_not_in_album(self):
+        toadd = set(self.contained_goods.keys()) - set(self.uploaded_goods.keys())
+        print('Adding %d goods...' % len(toadd))
+        for (idx, good_id) in enumerate(toadd, start=1):
+            sys.stdout.write("\r(%d/%d) " % (idx, len(toadd)))
+            self.add_good(good_id, self.contained_goods[good_id])
 
-    with xlrd.open_workbook(stock_list_file) as wb:
-        sh = wb.sheet_by_index(0)
-        for entry in entries_():
-            group_dict = goods.get(entry['group_id'], {})
-            group_dict[entry['id']] = entry['description']
-            goods[entry['group_id']] = group_dict
-    del goods['NULL']  # Не показывать эту группу
-    return goods
-
-
-def create_missing_albums(u, goods_in_stock, existing_albums):
-    albums_to_create = set(goods_in_stock.keys()) - set(existing_albums.keys())
-    print('Creating missing photo albums(%d)...' % len(albums_to_create))
-    for album_name in albums_to_create:
-        print 'Creating %s...' % album_name
-        existing_albums[album_name] = u.create_album(album_name)
-
-
-def sync_goods_in_group(existing_albums, goods_group_id, goods_in_stock, u):
-    payload = {
-        'album_id': existing_albums[goods_group_id],
-        'group_id': args.group_id
-    }
-    upload_url = u.call_api('photos.getUploadServer', payload)['upload_url']
-    print("Uploading photos for album '%s' to %s..." % (goods_group_id, upload_url))
-
-    uploaded_goods = u.get_uploaded_goods_list(existing_albums[goods_group_id])
-    delete_not_in_stock(goods_in_stock[goods_group_id], u, uploaded_goods)
-    add_not_in_album(goods_in_stock[goods_group_id], u, upload_url, uploaded_goods)
-
-
-def delete_not_in_stock(goods_in_group, u, uploaded_goods):
-    todel = set(uploaded_goods.keys()) - set(goods_in_group.keys())
-    print('Removing %d goods not in stock...' % len(todel))
-    for (idx, good_id) in enumerate(todel, start=1):
-        print('Deleting %d/%d file (%s)' % (idx, len(todel), good_id))
-        u.call_api('photos.delete', {'owner_id': "-%s" % args.group_id, 'photo_id': uploaded_goods[good_id]})
-
-
-def add_not_in_album(goods_in_group, u, upload_url, uploaded_goods):
-    toadd = set(goods_in_group.keys()) - set(uploaded_goods.keys())
-    print('Adding %d goods...' % len(toadd))
-    for (idx, good_id) in enumerate(toadd, start=1):
-        add_good(good_id, idx, len(toadd), u, upload_url, goods_in_group[good_id])
-
-
-def add_good(good_id, idx, total, uploader, upload_url, description):
-    try:
-        fileobj = get_photo_from_site(good_id)
-    except PhotoNotFound:
+    def add_good(self, good_id, description):
         try:
-            fileobj = open('/'.join([args.missing_file_dir, good_id]), 'rb')
-        except IOError:
-            print('%s was not found either on site or on disk . Skipping' % good_id)
-            return
+            fileobj = self.app.get_photo_from_site(good_id)
+        except PhotoNotFound:
+            try:
+                fileobj = open('/'.join([self.app.missing_file_dir, good_id]), 'rb')
+            except IOError:
+                print('%s was not found either on site or on disk . Skipping' % good_id)
+                return
+        sys.stdout.write('Uploading %s/%s file' % (good_id, str(fileobj)))
+        self.app.u.upload_photo(fileobj, self.upload_url, description)
 
-    print('Uploading %d/%d file (%s/%s)' % (idx, total, good_id, str(fileobj)))
-    uploader.upload_photo(fileobj, upload_url, description)
+
+class Application(object):
+    def setup_arguments(self):
+        parser = argparse.ArgumentParser(description='Upload files to VK group')
+        parser.add_argument('--login', type=str)
+        parser.add_argument('--password', type=str)
+        parser.add_argument('--group_id', type=str, default='66887755')
+        parser.add_argument('--app_id', type=str, default='4203932')
+        parser.add_argument('--missing-file-dir', type=str, default='.')
+        parser.add_argument('stock_list', type=str)
+        parser.parse_args(namespace=self)
+
+    def __init__(self):
+        self.u = None
+        self.stock_list = None
+        self.password = None
+        self.login = None
+
+    def create_missing_albums(self, goods_in_stock, existing_albums):
+        albums_to_create = set(goods_in_stock.keys()) - set(existing_albums.keys())
+        print('Creating missing photo albums(%d)...' % len(albums_to_create))
+        for album_name in albums_to_create:
+            print 'Creating %s...' % album_name
+            existing_albums[album_name] = self.u.create_album(album_name)
+
+    @staticmethod
+    def get_goods_in_stock(stock_list_file):
+        def entries_():
+            for row_number in range(sh.nrows):
+                cell_value = unicode(sh.cell_value(row_number, 0))
+                if not is_good_id(cell_value):
+                    continue
+                yield (
+                    {
+                        'id': str(int(float(cell_value.strip()))),
+                        'group_id': sh.cell_value(row_number,4),
+                        'description': '\n'.join(sh.cell_value(row_number, i) for i in (1, 2, 8))
+                        # Наименование, класс, характеристики
+                    }
+                )
+
+        goods_by_group = {}
+
+        with xlrd.open_workbook(stock_list_file) as wb:
+            sh = wb.sheet_by_index(0)
+            for entry in entries_():
+                group_dict = goods_by_group.get(entry['group_id'], {})
+                group_dict[entry['id']] = entry['description']
+                goods_by_group[entry['group_id']] = group_dict
+        del goods_by_group['NULL']  # Не показывать эту группу
+        return goods_by_group
+
+    @staticmethod
+    def get_photo_from_site(filename):
+        filename = os.path.basename(filename)
+        sys.stdout.write('Getting photo for goods id %s... ' % filename)
+        resp = requests.get('http://texrepublic.ru/pic/site/%s.gif' % filename)
+
+        if resp.status_code != requests.codes.ok:
+            raise PhotoNotFound('Hell! got %s', resp.text)
+
+        ret = StringIO.StringIO(resp.content)
+        ret.filename = '%s.gif' % filename
+        return ret
 
 
-def get_photo_from_site(filename):
-    filename = os.path.basename(filename)
-    print('Getting photo for goods id %s ...' % filename)
-    resp = requests.get('http://texrepublic.ru/pic/site/%s.gif' % filename)
+def main():
+    app = Application()
+    app.setup_arguments()
 
-    if resp.status_code != requests.codes.ok:
-        raise PhotoNotFound('Hell! got %s', resp.text)
-
-    ret = StringIO.StringIO(resp.content)
-    ret.filename = '%s.gif' % filename
-    return ret
+    u = VKUploader(app)
+    app.u = u
+    existing_albums = u.get_albums()
+    goods_in_stock = app.get_goods_in_stock(app.stock_list)
+    app.create_missing_albums(goods_in_stock, existing_albums)
+    for goods_group_id in goods_in_stock.iterkeys():
+        g = Group(
+            album_id=existing_albums[goods_group_id],
+            contained_goods=goods_in_stock[goods_group_id],
+            goods_group_id=goods_group_id,
+            app=app
+        )
+        g.sync_goods_in_group()
 
 
 def is_good_id(str_):
