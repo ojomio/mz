@@ -6,6 +6,7 @@ from copy import copy
 import os
 from pprint import pprint
 import re
+from threading import Event, Timer
 from urllib import urlencode
 import sys
 
@@ -62,9 +63,23 @@ class PhotoNotFound(Exception):
     pass
 
 
+def vk_api_ratelimited(func):
+    def to_return(self, *args, **kwargs):
+        def restriction_release(event_to_set):
+            event_to_set.set()
+        result = func(self, *args, **kwargs)
+        self.api_requests_permitted.clear()
+        Timer(0.3, restriction_release, args=[self.api_requests_permitted]).start()
+        return result
+    return to_return
+
 class VKUploader(object):
     def __init__(self, app):
         self.app = app
+        # No more than 3 reqs per second limit is enforced by this
+        self.api_requests_permitted = Event()
+        self.api_requests_permitted.set()
+
         self.do_auth()
 
     def do_auth(self):
@@ -108,7 +123,11 @@ class VKUploader(object):
             else:
                 yield paramkey, paramvalue
 
+    @vk_api_ratelimited
     def call_api(self, api_method, params, http_verb='get'):
+        # first ensure we waited enough to flood the server
+        self.api_requests_permitted.wait()
+
         if self.access_token:
             params["access_token"] = self.access_token
         params = dict(self.prepare_api_call_args(params))
