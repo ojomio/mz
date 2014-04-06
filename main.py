@@ -67,11 +67,14 @@ def vk_api_ratelimited(func):
     def to_return(self, *args, **kwargs):
         def restriction_release(event_to_set):
             event_to_set.set()
+
         result = func(self, *args, **kwargs)
         self.api_requests_permitted.clear()
         Timer(0.3, restriction_release, args=[self.api_requests_permitted]).start()
         return result
+
     return to_return
+
 
 class VKUploader(object):
     def __init__(self, app):
@@ -247,7 +250,7 @@ class Application(object):
         parser = argparse.ArgumentParser(description='Upload files to VK group')
         parser.add_argument('--login', type=str)
         parser.add_argument('--password', type=str)
-        parser.add_argument('--group_id', type=str, default='66887755')
+        parser.add_argument('--group_id', type=str, default='68712727')
         parser.add_argument('--app_id', type=str, default='4203932')
         parser.add_argument('--missing-file-dir', type=str, default='.')
         parser.add_argument('stock_list', type=str)
@@ -276,7 +279,7 @@ class Application(object):
                 yield (
                     {
                         'id': str(int(float(cell_value.strip()))),
-                        'group_id': sh.cell_value(row_number,4),
+                        'group_id': sh.cell_value(row_number, 4),
                         'description': '\n'.join(sh.cell_value(row_number, i) for i in (1, 2, 8))
                         # Наименование, класс, характеристики
                     }
