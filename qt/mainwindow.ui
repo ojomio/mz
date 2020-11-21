@@ -19,7 +19,7 @@
      <widget class="QListWidget" name="listWidget"/>
     </item>
     <item>
-     <widget class="QPushButton" name="pushButton">
+     <widget class="QPushButton" name="btnBrowse">
       <property name="text">
        <string>Выбрать файл</string>
       </property>
