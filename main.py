@@ -1,17 +1,16 @@
 # coding=utf-8
-from html.parser import HTMLParser
-import io
 import argparse
-from copy import copy
+import io
 import os
-from pprint import pprint
 import re
+import sys
+from copy import copy
+from html.parser import HTMLParser
+from pprint import pprint
 from threading import Event, Timer
 from urllib.parse import urlencode
-import sys
 
 import xlrd
-
 
 __author__ = 'crystal'
 
@@ -97,7 +96,9 @@ class VKUploader(object):
         }
 
         self.VKsession = requests.Session()
-        resp_with_auth_form = self.VKsession.get('https://oauth.vk.com/authorize', params=payload)
+        resp_with_auth_form = self.VKsession.get(
+            'https://oauth.vk.com/authorize', params=payload
+        )
         parser = FormParser()
         parser.feed(resp_with_auth_form.text)
 
@@ -105,18 +106,21 @@ class VKUploader(object):
         req_params['email'] = self.app.login
         req_params['pass'] = self.app.password
 
-        resp_with_grant_access_form = \
-            self.VKsession.__getattribute__(parser.method)(parser.url, params=req_params)
+        resp_with_grant_access_form = self.VKsession.__getattribute__(parser.method)(
+            parser.url, params=req_params
+        )
         parser = FormParser()
         parser.feed(resp_with_grant_access_form.text)
 
-        resp_with_access_token = \
-            self.VKsession.__getattribute__(parser.method)(parser.url, params=parser.params)
+        resp_with_access_token = self.VKsession.__getattribute__(parser.method)(
+            parser.url, params=parser.params
+        )
 
         redir_location = resp_with_access_token.history[0].headers['Location']
-        self.access_token = re.search(r'#.*access_token=(\w+)(&|$)', redir_location).group(1)
+        self.access_token = re.search(
+            r'#.*access_token=(\w+)(&|$)', redir_location
+        ).group(1)
         self.user_id = re.search(r'(?:#|&)user_id=(\w+)(&|$)', redir_location).group(1)
-
 
     @staticmethod
     def prepare_api_call_args(params):
@@ -147,9 +151,7 @@ class VKUploader(object):
         return json['response']
 
     def upload_photo(self, fileobj, upload_url, description):
-        files = {
-            'file1': (fileobj.filename, fileobj)
-        }
+        files = {'file1': (fileobj.filename, fileobj)}
         resp = self.VKsession.post(upload_url, files=files)
         if resp.status_code != requests.codes.ok:
             raise APIException('Hell! got %s' % resp.text)
@@ -159,13 +161,10 @@ class VKUploader(object):
         return self.call_api('photos.save', req_params)
 
     def get_albums(self):
-        req_params = {
-            'owner_id': "-%s" % self.app.group_id,
-        }
+        req_params = {'owner_id': "-%s" % self.app.group_id}
         return {
             album_entry['title']: album_entry['aid']
-            for album_entry
-            in self.call_api('photos.getAlbums', req_params)
+            for album_entry in self.call_api('photos.getAlbums', req_params)
         }
 
     def create_album(self, title, descr=None):
@@ -176,26 +175,19 @@ class VKUploader(object):
             'description': descr,
             'privacy': '0',
             'comment_privacy': '0',
-
         }
         return self.call_api('photos.createAlbum', req_params)['aid']
 
     def get_uploaded_goods_list(self, album):
-        req_params = {
-            'owner_id': "-%s" % self.app.group_id,
-            'album_id': album,
-        }
+        req_params = {'owner_id': "-%s" % self.app.group_id, 'album_id': album}
         return {
             self.extract_good_id(photo_entry): photo_entry['pid']
-            for photo_entry
-            in self.call_api('photos.get', req_params)
+            for photo_entry in self.call_api('photos.get', req_params)
         }
 
     @staticmethod
     def extract_good_id(photo_entry):
-        return os.path.splitext(
-            photo_entry['text'].split('<br>')[-1]
-        )[0]
+        return os.path.splitext(photo_entry['text'].split('<br>')[-1])[0]
 
 
 class Group(object):
@@ -203,11 +195,10 @@ class Group(object):
         self.app = app
         self.id = goods_group_id
         self.uploaded_goods = self.app.u.get_uploaded_goods_list(album_id)
-        payload = {
-            'album_id': album_id,
-            'group_id': self.app.group_id
-        }
-        self.upload_url = self.app.u.call_api('photos.getUploadServer', payload)['upload_url']
+        payload = {'album_id': album_id, 'group_id': self.app.group_id}
+        self.upload_url = self.app.u.call_api('photos.getUploadServer', payload)[
+            'upload_url'
+        ]
         self.contained_goods = contained_goods
 
     def sync_goods_in_group(self):
@@ -222,7 +213,10 @@ class Group(object):
             print(('Deleting %d/%d file (%s)' % (idx, len(todel), good_id)))
             self.app.u.call_api(
                 'photos.delete',
-                {'owner_id': "-%s" % self.app.group_id, 'photo_id': self.uploaded_goods[good_id]}
+                {
+                    'owner_id': "-%s" % self.app.group_id,
+                    'photo_id': self.uploaded_goods[good_id],
+                },
             )
 
     def add_not_in_album(self):
@@ -239,7 +233,9 @@ class Group(object):
             try:
                 fileobj = open('/'.join([self.app.missing_file_dir, good_id]), 'rb')
             except IOError:
-                print(('%s was not found either on site or on disk . Skipping' % good_id))
+                print(
+                    ('%s was not found either on site or on disk . Skipping' % good_id)
+                )
                 return
         sys.stdout.write('Uploading %s/%s file' % (good_id, str(fileobj)))
         self.app.u.upload_photo(fileobj, self.upload_url, description)
@@ -280,7 +276,9 @@ class Application(object):
                     {
                         'id': str(int(float(cell_value.strip()))),
                         'group_id': sh.cell_value(row_number, 4),
-                        'description': '\n'.join(sh.cell_value(row_number, i) for i in (1, 2, 8))
+                        'description': '\n'.join(
+                            sh.cell_value(row_number, i) for i in (1, 2, 8)
+                        )
                         # Наименование, класс, характеристики
                     }
                 )
@@ -324,7 +322,7 @@ def main():
             album_id=existing_albums[goods_group_id],
             contained_goods=goods_in_stock[goods_group_id],
             goods_group_id=goods_group_id,
-            app=app
+            app=app,
         )
         g.sync_goods_in_group()
 
