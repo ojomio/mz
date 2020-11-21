@@ -8,6 +8,7 @@ authors = ["Юрий Пайков <cry5tal@cry5tal.in>"]
 python = "~3.8"
 "Qt5.py" = "^0.1.0"
 PyQt5 = "^5.15.1"
+openpyxl = "^3.0.5"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
