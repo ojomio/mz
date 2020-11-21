@@ -1,5 +1,6 @@
 import os  # Отсюда нам понадобятся методы для отображения содержимого директорий
 import sys  # sys нужен для передачи argv в QApplication
+from pathlib import Path
 
 from PyQt5 import QtWidgets
 
@@ -19,16 +20,17 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
 
     def browse_folder(self):
         self.listWidget.clear()  # На случай, если в списке уже есть элементы
-        directory = QtWidgets.QFileDialog.getExistingDirectory(self, "Выберите папку")
-        # открыть диалог выбора директории и установить значение переменной
-        # равной пути к выбранной директории
+        dialog = QtWidgets.QFileDialog(self)
+        (filename, _) = dialog.getOpenFileName(
+            dialog, "Выберите таблицу", filter="Таблицы (*.xls *.xlsx)"
+        )
 
-        if not directory:
+        if not filename:
             return
+        file = Path(filename)
+
         self.buttonBox.setEnabled(True)
-        # не продолжать выполнение, если пользователь не выбрал директорию
-        for file_name in os.listdir(directory):  # для каждого файла в директории
-            self.listWidget.addItem(file_name)  # добавить файл в listWidget
+        self.setWindowTitle(f'Active - {file.name}')
 
 
 def main():
