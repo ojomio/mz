@@ -14,35 +14,52 @@
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralWidget">
-   <layout class="QVBoxLayout" name="verticalLayout_2">
+   <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <property name="sizeConstraint">
-       <enum>QLayout::SetMaximumSize</enum>
-      </property>
+     <widget class="QTableView" name="tableView"/>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
-       <widget class="QListWidget" name="listWidget"/>
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Начало диапазона</string>
+        </property>
+       </widget>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
-         <widget class="QPushButton" name="btnBrowse">
-          <property name="text">
-           <string>Выбрать файл</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QDialogButtonBox" name="buttonBox">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="standardButtons">
-           <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-          </property>
-         </widget>
-        </item>
-       </layout>
+       <widget class="QLineEdit" name="range_start"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Конец диапазона</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="range_end"/>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <item>
+       <widget class="QPushButton" name="btnBrowse">
+        <property name="text">
+         <string>Выбрать файл</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDialogButtonBox" name="buttonBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="standardButtons">
+         <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+        </property>
+       </widget>
       </item>
      </layout>
     </item>
