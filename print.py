@@ -23,11 +23,12 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         # открыть диалог выбора директории и установить значение переменной
         # равной пути к выбранной директории
 
-        if (
-            directory
-        ):  # не продолжать выполнение, если пользователь не выбрал директорию
-            for file_name in os.listdir(directory):  # для каждого файла в директории
-                self.listWidget.addItem(file_name)  # добавить файл в listWidget
+        if not directory:
+            return
+        self.buttonBox.setEnabled(True)
+        # не продолжать выполнение, если пользователь не выбрал директорию
+        for file_name in os.listdir(directory):  # для каждого файла в директории
+            self.listWidget.addItem(file_name)  # добавить файл в listWidget
 
 
 def main():
