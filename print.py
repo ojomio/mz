@@ -98,10 +98,14 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
             if sheet_name_match := re.search(
                 r'^(.*/\w*?(?:[a-zа-я](?=[А-ЯA-Z])|\w$))', cell_content
             ):
-                sheet_name = f'Печать {sheet_name_match.group(1).replace("/", " ")}'
+                head = sheet_name_match.group(1)
+                sheet_name = f'Печать {head.replace("/", " ")}'
                 print(f'Adding {sheet_name}...')
                 new_ws = self.wb.create_sheet(sheet_name)
-                new_ws[self.target_cell.text()].value = cell_content
+
+                print(cell_content[len(head):])
+                target_cell_content = f"{head}\n" + re.sub(r'((ш(ирина)?|в(ысота)?)\s+)?\d+', "\n\g<0>",  cell_content[len(head):])
+                new_ws[self.target_cell.text()].value = target_cell_content
                 print('Sheet processed')
 
         self._save_workbook()
