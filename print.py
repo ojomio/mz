@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Optional
 
 import openpyxl
-from openpyxl.utils import coordinate_to_tuple
+from openpyxl.styles import Alignment
+from openpyxl.utils import coordinate_to_tuple, get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QUrl
@@ -103,9 +104,20 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 print(f'Adding {sheet_name}...')
                 new_ws = self.wb.create_sheet(sheet_name)
 
-                print(cell_content[len(head):])
-                target_cell_content = f"{head}\n" + re.sub(r'((ш(ирина)?|в(ысота)?)\s+)?\d+', "\n\g<0>",  cell_content[len(head):])
-                new_ws[self.target_cell.text()].value = target_cell_content
+                target_cell_content = f"{head}\n" + re.sub(
+                    r'((ш(ирина)?|в(ысота)?)\s+)?\d+',
+                    "\n\g<0>",
+                    cell_content[len(head) :],
+                )
+
+                target_row, target_col = coordinate_to_tuple(self.target_cell.text())
+                new_cell = new_ws[self.target_cell.text()]
+                new_cell.value = target_cell_content
+
+                new_cell.alignment = Alignment(wrap_text=True, vertical='top')
+                new_ws.column_dimensions[get_column_letter(target_col)].width = 20
+                new_ws.row_dimensions[target_row].height = 300
+
                 print('Sheet processed')
 
         self._save_workbook()
