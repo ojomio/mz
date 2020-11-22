@@ -1,1 +1,4 @@
 .idea
+print/target
+__pycache__
+*.bak

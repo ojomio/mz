@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 import openpyxl
+from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from openpyxl.styles import Alignment
 from openpyxl.utils import coordinate_to_tuple, get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
@@ -13,7 +14,7 @@ from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import QFileDialog, QTableWidgetItem
 
-from qt import mainwindow  # Это наш конвертированный файл дизайна
+from print.src.main.python.qt import mainwindow  # Это наш конвертированный файл дизайна
 
 
 class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
@@ -133,10 +134,13 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
 
 
 def main():
-    app = QtWidgets.QApplication(sys.argv)  # Новый экземпляр QApplication
+    appctxt = ApplicationContext()  # 1. Instantiate ApplicationContext
+
     window = ExampleApp()  # Создаём объект класса ExampleApp
     window.show()  # Показываем окно
-    app.exec_()  # и запускаем приложение
+
+    exit_code = appctxt.app.exec_()  # 2. Invoke appctxt.app.exec_()
+    sys.exit(exit_code)
 
 
 if __name__ == '__main__':  # Если мы запускаем файл напрямую, а не импортируем
