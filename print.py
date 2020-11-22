@@ -105,7 +105,7 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 new_ws = self.wb.create_sheet(sheet_name)
 
                 target_cell_content = f"{head}\n" + re.sub(
-                    r'((ш(ирина)?|в(ысота)?)\s+)?\d+',
+                    r'((ш(ирина)?|в(ысота)?)\s+)?(\d+(\s*[*xх]\s*)?)+',
                     "\n\g<0>",
                     cell_content[len(head) :],
                 )
