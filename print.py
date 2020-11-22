@@ -101,13 +101,13 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 sheet_name = f'Печать {sheet_name_match.group(1).replace("/", " ")}'
                 print(f'Adding {sheet_name}...')
                 new_ws = self.wb.create_sheet(sheet_name)
-                new_ws['I13'].value = cell_content
+                new_ws[self.target_cell.text()].value = cell_content
                 print('Sheet processed')
 
         self._save_workbook()
 
     def _save_workbook(self):
-        edited_file = (self.file.parent / f'processed_{self.file.stem}').with_suffix(
+        edited_file = (self.file.parent / f'Обработка_{self.file.stem}').with_suffix(
             self.file.suffix
         )
         print(f'Saving to {edited_file}...')
