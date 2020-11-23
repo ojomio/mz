@@ -61,19 +61,23 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         self._load_table_widget(self.ws)
         self.buttonBox.show()
 
-    def _load_table_widget(self, ws: Worksheet):
+    def _load_table_widget(self, ws: Worksheet, row_start: int = 2):
         headers = [
             cell.value for cell in itertools.takewhile(lambda x: bool(x), ws['1'])
         ]
         self.tableWidget.setColumnCount(len(headers))
-        self.tableWidget.setHorizontalHeaderLabels(headers)
+        self.tableWidget.setRowCount(ws.max_row - row_start + 1)
 
-        data = ws.iter_rows(min_row=2)
+        self.tableWidget.setHorizontalHeaderLabels(headers)
+        self.tableWidget.setVerticalHeaderLabels(
+            map(str, range(row_start, ws.max_row + 1))
+        )
+
+        data = ws.iter_rows(min_row=row_start)
         for x, row in enumerate(data):
             if row[0].value is None:
                 break
 
-            self.tableWidget.setRowCount(self.tableWidget.rowCount() + 1)
             for y, cell in enumerate(row):
                 val = cell.value
                 if val is None:
@@ -81,7 +85,7 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 item = QTableWidgetItem(str(val))
                 self.tableWidget.setItem(x, y, item)
 
-        self.range_start.setText('A1')
+        self.range_start.setText('A2')
         self.range_end.setText(f'A{ws.max_row}')
 
     def process_file(self):
