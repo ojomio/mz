@@ -78,5 +78,5 @@ class Ui_MainWindow(object):
                 "MainWindow", "<html><head/><body><p>Целевая ячейка</p></body></html>"
             )
         )
-        self.target_cell.setText(_translate("MainWindow", "I13"))
+        self.target_cell.setText(_translate("MainWindow", "H10"))
         self.btnBrowse.setText(_translate("MainWindow", "Выбрать файл"))

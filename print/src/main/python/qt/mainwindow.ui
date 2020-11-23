@@ -50,7 +50,7 @@
       <item>
        <widget class="QLineEdit" name="target_cell">
         <property name="text">
-         <string>I13</string>
+         <string>H10</string>
         </property>
        </widget>
       </item>

@@ -6,8 +6,9 @@ from typing import Optional
 
 import openpyxl
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
-from openpyxl.styles import Alignment, PatternFill
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import coordinate_to_tuple, get_column_letter
+from openpyxl.utils.units import cm_to_dxa, points_to_pixels
 from openpyxl.worksheet.worksheet import Worksheet
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QUrl
@@ -15,6 +16,10 @@ from PyQt5.QtGui import QColor, QDesktopServices
 from PyQt5.QtWidgets import QFileDialog, QTableWidgetItem
 
 from print.src.main.python.qt import mainwindow  # Это наш конвертированный файл дизайна
+
+WIDTH_CM_LIST = [2.11, 1.21, 1.08, 0.94, 1.19, 0.94, 6.06, 10.35]
+HEIGHT_CM_LIST = [0.51] * 8 + [0.35, 4.71]
+
 
 
 class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
@@ -106,6 +111,7 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 sheet_name = f'Печать {head.replace("/", " ")}'
                 print(f'Adding {sheet_name}...')
                 new_ws = self.wb.create_sheet(sheet_name)
+                self._format_new_worksheet(new_ws)
 
                 target_cell_content = f"{head}\n" + re.sub(
                     r'((ш(ирина)?|в(ысота)?)\s+)?(\d+(\s*[*xх]\s*)?)+',
@@ -113,13 +119,8 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                     cell_content[len(head) :],
                 )
 
-                target_row, target_col = coordinate_to_tuple(self.target_cell.text())
                 new_cell = new_ws[self.target_cell.text()]
                 new_cell.value = target_cell_content
-
-                new_cell.alignment = Alignment(wrap_text=True, vertical='top')
-                new_ws.column_dimensions[get_column_letter(target_col)].width = 20
-                new_ws.row_dimensions[target_row].height = 300
 
                 print('Sheet processed')
             else:
@@ -128,6 +129,22 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 self.tableWidget.item(*to_widget_coords(row, col_start)).setBackground(q_color)
 
         self._save_workbook()
+
+    def _format_new_worksheet(self, new_ws):
+        new_cell = new_ws[self.target_cell.text()]
+
+        new_cell.alignment = Alignment(wrap_text=True, vertical='top')
+        new_cell.font = Font('Calibri', 12, b=True)
+
+        for col, col_width_cm in enumerate(WIDTH_CM_LIST, start=1):
+            new_ws.column_dimensions[get_column_letter(col)].width = (
+                points_to_pixels(cm_to_dxa(col_width_cm) / 20, dpi=72) / 7
+            )
+
+        for row, row_height_cm in enumerate(HEIGHT_CM_LIST, start=1):
+            new_ws.row_dimensions[row].height = points_to_pixels(
+                cm_to_dxa(row_height_cm) / 20, dpi=72
+            )
 
     def _save_workbook(self):
         edited_file = (self.file.parent / f'Обработка_{self.file.stem}').with_suffix(
