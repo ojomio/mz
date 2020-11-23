@@ -6,12 +6,12 @@ from typing import Optional
 
 import openpyxl
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import coordinate_to_tuple, get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QUrl
-from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtGui import QColor, QDesktopServices
 from PyQt5.QtWidgets import QFileDialog, QTableWidgetItem
 
 from print.src.main.python.qt import mainwindow  # Это наш конвертированный файл дизайна
@@ -86,6 +86,10 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         if not self.file:
             return
 
+        warn_color = 'ffef5c'
+        warning_fill = PatternFill(start_color=warn_color, end_color=warn_color, fill_type='solid')
+        q_color = QColor.fromRgb(int(f'0x{warn_color}', base=16))
+
         row_start, col_start = coordinate_to_tuple(self.range_start.text())
         row_end, col_end = coordinate_to_tuple(self.range_end.text())
 
@@ -118,6 +122,10 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 new_ws.row_dimensions[target_row].height = 300
 
                 print('Sheet processed')
+            else:
+                print(f'No match for content {cell_content}')
+                self.ws.cell(row, col_start).fill = warning_fill
+                self.tableWidget.item(*to_widget_coords(row, col_start)).setBackground(q_color)
 
         self._save_workbook()
 
@@ -129,6 +137,11 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         self.wb.save(edited_file)
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(edited_file)))
+
+
+def to_widget_coords(row, col):
+    HEADER = 1
+    return row - 1 - HEADER, col - 1
 
 
 def main():
