@@ -24,9 +24,7 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         super().__init__()
         self.setupUi(self)  # Это нужно для инициализации нашего дизайна
         self.buttonBox.hide()
-        self.btnBrowse.clicked.connect(
-            self.browse_folder
-        )  # Выполнить функцию browse_folder
+        self.btnBrowse.clicked.connect(self.browse_folder)  # Выполнить функцию browse_folder
         # при нажатии кнопки
 
         self.buttonBox.accepted.connect(self.process_file)
@@ -62,16 +60,12 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         self.buttonBox.show()
 
     def _load_table_widget(self, ws: Worksheet, row_start: int = 2):
-        headers = [
-            cell.value for cell in itertools.takewhile(lambda x: bool(x), ws['1'])
-        ]
+        headers = [cell.value for cell in itertools.takewhile(lambda x: bool(x), ws['1'])]
         self.tableWidget.setColumnCount(len(headers))
         self.tableWidget.setRowCount(ws.max_row - row_start + 1)
 
         self.tableWidget.setHorizontalHeaderLabels(headers)
-        self.tableWidget.setVerticalHeaderLabels(
-            map(str, range(row_start, ws.max_row + 1))
-        )
+        self.tableWidget.setVerticalHeaderLabels(map(str, range(row_start, ws.max_row + 1)))
 
         data = ws.iter_rows(min_row=row_start)
         for x, row in enumerate(data):
