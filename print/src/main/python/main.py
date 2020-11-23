@@ -102,7 +102,7 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 continue
 
             if sheet_name_match := re.search(
-                r'^(.*/\w*?(?:[a-zа-я](?=[А-ЯA-Z])|\w$))', cell_content
+                r'^(\d*/[-\d\w]*?(?:[a-zа-я](?=[А-ЯA-Z])|$))', cell_content
             ):
                 head = sheet_name_match.group(1)
                 sheet_name = f'Печать {head.replace("/", " ")}'
