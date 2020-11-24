@@ -8,7 +8,7 @@ import openpyxl
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import coordinate_to_tuple, get_column_letter
-from openpyxl.utils.units import cm_to_dxa, points_to_pixels
+from openpyxl.utils.units import cm_to_dxa, points_to_pixels, cm_to_EMU, EMU_to_inch
 from openpyxl.worksheet.worksheet import Worksheet
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QUrl
@@ -19,6 +19,8 @@ from print.src.main.python.qt import mainwindow  # Это наш конверт�
 
 WIDTH_CM_LIST = [2.11, 1.21, 1.08, 0.94, 1.19, 0.94, 6.06, 10.35]
 HEIGHT_CM_LIST = [0.51] * 8 + [0.35, 4.71]
+MARGIN_X_CM = 0.64
+MARGIN_Y_CM = 1.91
 
 
 
@@ -145,6 +147,10 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
             new_ws.row_dimensions[row].height = points_to_pixels(
                 cm_to_dxa(row_height_cm) / 20, dpi=72
             )
+
+        new_ws.print_area = f'A1:{get_column_letter(len(WIDTH_CM_LIST))}{len(HEIGHT_CM_LIST)}'
+        new_ws.page_margins.top = new_ws.page_margins.bottom = EMU_to_inch(cm_to_EMU(MARGIN_Y_CM))
+        new_ws.page_margins.left = new_ws.page_margins.right = EMU_to_inch(cm_to_EMU(MARGIN_X_CM))
 
     def _save_workbook(self):
         edited_file = (self.file.parent / f'Обработка_{self.file.stem}').with_suffix(
