@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional
 
 import openpyxl
-from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import coordinate_to_tuple, get_column_letter
 from openpyxl.utils.units import cm_to_dxa, points_to_pixels, cm_to_EMU, EMU_to_inch
@@ -15,7 +14,7 @@ from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QColor, QDesktopServices
 from PyQt5.QtWidgets import QFileDialog, QTableWidgetItem
 
-from print.src.main.python.qt import mainwindow  # Это наш конвертированный файл дизайна
+from qt import mainwindow  # Это наш конвертированный файл дизайна
 
 WIDTH_CM_LIST = [2.11, 1.21, 1.08, 0.94, 1.19, 0.94, 6.06, 10.35]
 HEIGHT_CM_LIST = [0.51] * 8 + [0.35, 4.71]
@@ -168,13 +167,10 @@ def to_widget_coords(row, col):
 
 
 def main():
-    appctxt = ApplicationContext()  # 1. Instantiate ApplicationContext
-
+    app = QtWidgets.QApplication(sys.argv)  # Новый экземпляр QApplication
     window = ExampleApp()  # Создаём объект класса ExampleApp
     window.show()  # Показываем окно
-
-    exit_code = appctxt.app.exec_()  # 2. Invoke appctxt.app.exec_()
-    sys.exit(exit_code)
+    app.exec_()  # и запускаем приложение
 
 
 if __name__ == '__main__':  # Если мы запускаем файл напрямую, а не импортируем

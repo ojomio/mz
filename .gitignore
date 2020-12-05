@@ -1,4 +1,5 @@
 .idea
-print/target
 __pycache__
+build
+dist
 *.bak

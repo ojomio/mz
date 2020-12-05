@@ -1,7 +1,7 @@
 
 PHONY: gui
 
-gui: print/src/main/python/qt/*.py
+gui: qt/*.py
 
 %.py: %.ui
 	pyuic5 $< > $@
@@ -16,6 +16,3 @@ lint:
 pretty:
 	black --target-version py38 --skip-string-normalization --line-length=100 $(CODE)
 	isort  $(CODE)
-
-build-installer:
-	cd print && fbs freeze && fbs installer
