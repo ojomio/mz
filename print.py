@@ -55,7 +55,7 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         if not filename:
             return
 
-        self.file = Path(filename).resolve()
+        self.file = Path(filename)
 
         self.wb = openpyxl.open(self.file)
         self.ws = self.wb.active
