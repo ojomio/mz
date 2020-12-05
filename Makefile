@@ -16,3 +16,6 @@ lint:
 pretty:
 	black --target-version py38 --skip-string-normalization --line-length=100 $(CODE)
 	isort  $(CODE)
+
+build:
+	python ./setup.py bdist
