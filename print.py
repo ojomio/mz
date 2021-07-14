@@ -105,9 +105,15 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
             if not cell_content:
                 continue
 
+            # fmt: off
             if sheet_name_match := re.search(
-                r'^(\d*/[-\d\w]*?(?:[a-zа-я](?=[А-ЯA-Z])|$))', cell_content
+                r'^(\d*/[-\d\w]*?'
+                    r'(?:[a-zа-я]'
+                        r'(?=[А-ЯA-Z])|(?=\s*артикул)|$'
+                    r')'
+                r')', cell_content, flags=re.X
             ):
+                # fmt: on
                 head = sheet_name_match.group(1)
                 sheet_name = f'Печать {head.replace("/", " ")}'
                 print(f'Adding {sheet_name}...')
@@ -115,7 +121,7 @@ class ExampleApp(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
                 self._format_new_worksheet(new_ws)
 
                 target_cell_content = f"{head}\n" + re.sub(
-                    r'((ш(ирина)?|в(ысота)?)\s+)?(\d+(\s*[*xх]\s*)?)+',
+                    r'((артикул|ш(ирина)?|в(ысота)?)\s+)?(\d+(\s*[*xх]\s*)?)+',
                     "\n\g<0>",
                     cell_content[len(head) :],
                 )
