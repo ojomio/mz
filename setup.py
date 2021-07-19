@@ -15,7 +15,7 @@ if sys.platform == "win32":
 
 setup(
     name="Printer",
-    version="0.1",
+    version="0.2",
     description="Подготовка распечаток для Wildberries",
     options={"build_exe": build_exe_options},
     packages=['qt'],
